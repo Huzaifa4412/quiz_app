@@ -1,7 +1,8 @@
 import streamlit as st
 import random
+import time
 
-# Basic quiz questions
+# Quiz questions database (kept the same as your original)
 quiz_questions = [
     {"question": "What is Python?", "options": ["A programming language", "A snake", "A type of coffee", "A movie"], "answer": "A programming language"},
     {"question": "Which keyword is used to define a function in Python?", "options": ["func", "define", "def", "function"], "answer": "def"},
@@ -58,47 +59,94 @@ quiz_questions = [
 ]
 
 
-st.title("Customizable Quiz App 🧠")
-st.write("Test your knowledge and choose the number of questions you want!")
-
-# User selects the number of questions
-num_questions = st.slider("How many questions do you want?", 1, len(quiz_questions), 20)
-
-# Reset session state if number of questions changes
-if "num_questions" not in st.session_state or st.session_state.num_questions != num_questions:
-    st.session_state.remaining_questions = random.sample(quiz_questions, num_questions)
+def initialize_session_state(no_of_q):
+    """Initialize session state variables based on slider selection"""
+    # Clear previous session state to reset quiz
+    st.session_state.clear()
+    
+    # Set up new session state
+    st.session_state.asked_questions = []
     st.session_state.score = 0
-    st.session_state.current_question = 0
-    st.session_state.num_questions = num_questions
+    st.session_state.total_questions = no_of_q
+    st.session_state.current_question = None
+    st.session_state.quiz_started = True
 
-if len(st.session_state.remaining_questions) == 0:
-    st.write(f"Quiz complete! Your final score: {st.session_state.score}/{num_questions}")
-    st.balloons()
-    
-    if st.button("Restart"):
-        st.session_state.pop("remaining_questions")
-        st.session_state.pop("score")
-        st.session_state.pop("current_question")
-        st.session_state.pop("num_questions")
-        st.rerun()
-    st.stop()
+def generate_unique_quiz(quiz_questions, total_questions):
+    """Generate a unique set of questions based on total questions"""
+    # Shuffle the entire question bank
+    available_questions = random.sample(quiz_questions, min(total_questions, len(quiz_questions)))
+    return available_questions
 
-current_question = st.session_state.remaining_questions[st.session_state.current_question]
+def main():
+    st.title("📝 Python Quiz App")
 
-st.subheader(f"Question {st.session_state.current_question + 1}")
-st.write(current_question['question'])
+    # Slider to select number of questions with default and max
+    no_of_q = st.slider(
+        "Select how many questions you want to attempt", 
+        min_value=1, 
+        max_value=len(quiz_questions), 
+        value=min(10, len(quiz_questions))
+    )
 
-answer = st.radio("Select your answer", current_question["options"], key=f"q{st.session_state.current_question}")
+    # Button to start or restart the quiz
+    if 'quiz_started' not in st.session_state or not st.session_state.quiz_started:
+        if st.button("Start Quiz"):
+            # Initialize session state with selected number of questions
+            initialize_session_state(no_of_q)
+            
+            # Generate a unique set of questions
+            st.session_state.quiz_questions = generate_unique_quiz(quiz_questions, no_of_q)
+            st.session_state.current_question_index = 0
 
-if st.button("Submit"):
-    if answer == current_question['answer']:
-        st.success("Correct!")
-        st.session_state.score += 1
-    else:
-        st.error(f"Wrong! The correct answer is: {current_question['answer']}")
-    
-    st.session_state.remaining_questions.pop(0)
-    st.session_state.current_question = 0
-    st.rerun()
+    # Quiz is in progress
+    if 'quiz_questions' in st.session_state and st.session_state.current_question_index < len(st.session_state.quiz_questions):
+        # Get current question
+        current_question = st.session_state.quiz_questions[st.session_state.current_question_index]
+        
+        # Display question
+        st.subheader(f"{current_question['question']}")
+        
+        # Select answer
+        select_ans = st.radio(
+            "Select Answer", 
+            options=current_question["options"],
+            key=f"question_{st.session_state.current_question_index}"
+        )
 
-st.info(f"Your current score is: {st.session_state.score}/{num_questions}")
+        # Submit button
+        if st.button("Submit Answer"):
+            # Check answer
+            if select_ans == current_question["answer"]:
+                st.success("✅ Correct")
+                st.session_state.score += 1
+            else:
+                st.error(f"❌ Wrong! The Correct Answer is: {current_question['answer']}")
+            
+            # Move to next question
+            st.session_state.current_question_index += 1
+
+    # Quiz completion
+    elif 'quiz_questions' in st.session_state and st.session_state.current_question_index >= len(st.session_state.quiz_questions):
+        st.info("Quiz Completed")   
+        st.write(f"Your Score: {st.session_state.score}/{len(st.session_state.quiz_questions)}")
+        
+        # Performance analysis
+        percentage = (st.session_state.score / len(st.session_state.quiz_questions)) * 100
+        
+        if percentage == 100:
+            st.balloons()
+            st.success("Perfect Score! 🏆")
+        elif percentage >= 70:
+            st.success("Great Job! 👍")
+        elif percentage >= 50:
+            st.warning("Good Attempt! 📚")
+        else:
+            st.error("Keep Practicing! 💪")
+        
+        # Reset quiz
+        if st.button("Start New Quiz"):
+            st.session_state.clear()
+            st.rerun()
+
+if __name__ == "__main__":
+    main()
